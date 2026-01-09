@@ -17,10 +17,11 @@ mapping them):
 - `neorg.treesitter.previous.link` - jump to the previous link
 --]]
 
-local neorg = require("neorg.core")
+local neorg = require "neorg.core"
+local ts_handles = require "neorg.modules.core.integrations.treesitter.handles"
 local lib, log, modules, utils = neorg.lib, neorg.log, neorg.modules, neorg.utils
 
-local module = modules.create("core.integrations.treesitter")
+local module = modules.create "core.integrations.treesitter"
 
 module.private = {
     link_query = [[
@@ -61,26 +62,20 @@ module.load = function()
         -- luacheck: push ignore
 
         -- compat: nvim-treesitter master requires the extra function call, main does not
-        local parser_configs = require("nvim-treesitter.parsers")
-        if parser_configs.get_parser_configs then
-            parser_configs = parser_configs.get_parser_configs()
-        end
-
-        parser_configs.norg = {
+        ts_handles.register_parser("norg", {
             install_info = module.config.public.parser_configs.norg,
-        }
-
-        parser_configs.norg_meta = {
+        })
+        ts_handles.register_parser("norg_meta", {
             install_info = module.config.public.parser_configs.norg_meta,
-        }
+        })
 
         modules.await("core.neorgcmd", function(neorgcmd)
-            neorgcmd.add_commands_from_table({
+            neorgcmd.add_commands_from_table {
                 ["sync-parsers"] = {
                     args = 0,
                     name = "sync-parsers",
                 },
-            })
+            }
         end)
 
         -- luacheck: pop
@@ -96,7 +91,7 @@ module.load = function()
                 end
 
                 if module.config.public.install_parsers then
-                    require("nvim-treesitter.install").commands.TSInstallSync["run!"]("norg", "norg_meta")
+                    ts_handles.parser_install { "norg", "norg_meta" }
                     module.public.parser_path = vim.api.nvim_get_runtime_file("parser/norg.so", false)[1]
                 else
                     assert(
@@ -265,7 +260,7 @@ module.public = {
             filetype = "norg"
         end
 
-        local contents = io.open(path, "r"):read("*a")
+        local contents = io.open(path, "r"):read "*a"
         local tree = vim.treesitter.get_string_parser(contents, filetype):parse()[1]
         if not (tree or tree.root) then
             return {}
@@ -423,7 +418,7 @@ module.public = {
 
         if cursor_to_second then
             -- set jump location
-            vim.cmd("normal! m'")
+            vim.cmd "normal! m'"
 
             local char_delta = 0
             local line_delta = 0
@@ -711,7 +706,7 @@ module.public = {
             return
         end
 
-        local first_char = (vim.api.nvim_buf_get_lines(buf, line, line + 1, true)[1] or ""):match("^(%s+)[^%s]")
+        local first_char = (vim.api.nvim_buf_get_lines(buf, line, line + 1, true)[1] or ""):match "^(%s+)[^%s]"
         first_char = first_char and first_char:len() or 0
 
         local descendant = document_root:descendant_for_range(line, first_char, line, first_char + 1)
@@ -764,7 +759,7 @@ module.public = {
 
         local result = {}
         local function parse_data(node, src)
-            return lib.match(node:type())({
+            return lib.match(node:type()) {
                 string = function()
                     return trim(module.public.get_node_text(node, src))
                 end,
@@ -810,7 +805,7 @@ module.public = {
 
                     return resulting_object
                 end,
-            })
+            }
         end
 
         local norg_query = utils.ts_parse_query(
@@ -922,7 +917,7 @@ module.public = {
             if vim.fn.bufnr(source) ~= -1 then ---@diagnostic disable-line
                 source = vim.uri_to_bufnr(vim.uri_from_fname(source))
             else
-                iter_src = io.open(source, "r"):read("*a")
+                iter_src = io.open(source, "r"):read "*a"
                 norg_parser = vim.treesitter.get_string_parser(iter_src, "norg")
             end
         end
@@ -980,7 +975,7 @@ module.public.goto_node = function(node, goto_end, avoid_set_jump)
         return
     end
     if not avoid_set_jump then
-        vim.cmd("normal! m'")
+        vim.cmd "normal! m'"
     end
     local range = module.public.get_node_range(node)
 
@@ -996,7 +991,7 @@ module.public.goto_node = function(node, goto_end, avoid_set_jump)
     -- If we don't do this, it will miss the last character.
     local mode = vim.api.nvim_get_mode()
     if mode.mode == "no" then
-        vim.cmd("normal! v")
+        vim.cmd "normal! v"
     end
 
     vim.api.nvim_win_set_cursor(0, { position[1] + 1, position[2] })
@@ -1036,9 +1031,7 @@ end
 
 module.on_event = function(event)
     if event.split_type[2] == "sync-parsers" then
-        local install = require("nvim-treesitter.install")
-        install.commands.TSInstallSync["run!"]("norg")
-        install.commands.TSInstallSync["run!"]("norg_meta")
+        ts_handles.parser_install { "norg", "norg_meta" }
     end
 end
 
